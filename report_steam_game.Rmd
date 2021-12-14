@@ -20,10 +20,18 @@ source("process_data.R")
 ## Abstract
 
 ## Introduction
+video games are becoming more and more popular, especially during the pandemic and because of the RTX 30 series of Graphic Cards of Nvidia, which makes games run more smoothly and the graphics even more delicate. Many publishers take the advantage of this and provide their better service to attract people. Consequently, I would like to ask, except for the graphs, what aspects of games make them popular and attract people and I use the data from Steam.
+
+As most of us known, The Steam platform is the largest digital distribution platform for PC gaming, holding around 75% of the market share in 2013. It is run by Valve, providing installations and automatic updates for Valve's games as well as games from third-party publishers and it's a good communities for players to discuss games, where we can find a lot of information whether one game is good or not from customers including their playtime and so on. Therefore, Steam games data are good resource for me to do some analysis. 
+
+To represent the degree of preference towards one game, I would like to use the rating ratio, which is the positive ratings/negative ratings. 
 
 ## Method
 
 ### Data Cleaning and Processing
+The data is from Kaggle, named [Steam Store Games (Clean dataset)](https://www.kaggle.com/nikdavis/steam-store-games). Although the data seem to be clean, but it is not good enough for me to get some usefull information and some columns and words are not machine and human readable. Therefore I need to wrangle my data. First, I extract some information in some columns and make some more dummy variables, for example in the "platforms" column it contains the systems(Linux, Windows, or Mac) that the game supports, I divide them into 3 dummy varibles to show which system is available for one game. Second, I change some variables into values to make them readable. For example, the "owner" column reprents the range of owners for one game like 500000-1000000, and I change them into rank value from 1 to 13 where 1 is the smallest amount of owners for one game. Third, I dropped some columns that I don't need like "appid", "english", etc.
+
+After cleaning the data, I get the data I need for EDA and modeling, which is as follows:
 ```{r}
 df1 <- clean_data()
 str(df1)
@@ -50,6 +58,8 @@ max(df1$owner_rank)
 | Windows            | Dummy variables, if the game is available in Windows System              |
 | Mac                | Dummy variables, if the game is available in Mac System                  |
 | Linux              | Dummy variables, if the game is available in Linux System                |
+| Steam_Cloud        | Dummy variables, if the game surports Steam_Cloud                 |
+| Anti_Cheat         | Dummy variables, if the game surports Valve Anti-cheat                |
 | tags               | The most requently used tags detected in another dataset                 |
 
 
@@ -187,21 +197,29 @@ legend(x=1.8,
 
 radar plot separatively
 ```{r fig.cap="Radar charge for Top 7 rating ratio games seperatively", fig.height=4, fig.width= 10}
+library(customLayout)
+par(mar = c(1,2,2,1))
 
+lay <- lay_new(matrix(1:9, nc = 3),
+               widths = c(2,2,2),
+               heights = c(2,2,2))
+lay_set(lay)
 for (i in 1:(nrow(df_radar_plot)-2)){
-  df_radar_plot1 <- df_radar_plot[c(1,2,3)]
+  df_radar_plot1 <- df_radar_plot[c(1,2,i+2),]
   # plot the radar chart
   radarchart(df_radar_plot1,
              seg = 4,
-             pcol = colors_line,
-             pfcol = colors_fill,
+             title = df1_rating_7$name[i],
+             pcol = colors_line[i],
+             pfcol = colors_fill[i],
              plwd = 1)
   # add the legend for the radar chart
-  legend(x=1.8,
-         y=1.35,
-         legend = df1_rating_7$name,
-         bty = "n", pch=20, col=colors_line,cex = 1.2, pt.cex = 3)
+  # legend(x=1.8,
+  #        y=1.35,
+  #        legend = df1_rating_7$name[i],
+  #        bty = "n", pch=20, col=colors_line,cex = 1.2, pt.cex = 3)
 }
+
 
 ```
 radar plot for top 10 companies
@@ -210,24 +228,24 @@ radar plot for top 10 companies
 ## df1_select_pb
 colnames(df1_select_pb)
 
-df1_pb_stat <- df1_select_pb %>% group_by(publisher1) %>% summarise_at(vars(col_1), list(mid_6h = median))
+# df1_pb_stat <- df1_select_pb %>% group_by(publisher1) %>% summarise_at(vars(col_1), list(mid_6h = median))
 
 
 
-for (i in 1:(nrow(df_radar_plot)-2)){
-  df_radar_plot1 <- df_radar_plot[c(1,2,3)]
-  # plot the radar chart
-  radarchart(df_radar_plot1,
-             seg = 4,
-             pcol = colors_line,
-             pfcol = colors_fill,
-             plwd = 1)
-  # add the legend for the radar chart
-  legend(x=1.8,
-         y=1.35,
-         legend = df1_rating_7$name,
-         bty = "n", pch=20, col=colors_line,cex = 1.2, pt.cex = 3)
-}
+# for (i in 1:(nrow(df_radar_plot)-2)){
+#   df_radar_plot1 <- df_radar_plot[c(1,2,3)]
+#   # plot the radar chart
+#   radarchart(df_radar_plot1,
+#              seg = 4,
+#              pcol = colors_line,
+#              pfcol = colors_fill,
+#              plwd = 1)
+#   # add the legend for the radar chart
+#   legend(x=1.8,
+#          y=1.35,
+#          legend = df1_rating_7$name,
+#          bty = "n", pch=20, col=colors_line,cex = 1.2, pt.cex = 3)
+# }
 
 ```
 
@@ -279,6 +297,9 @@ ggplot(data = df1_select_pb, mapping = aes(x = log_rating_ratio, fill = publishe
 ## Discussion
 
 ## Reference
+1. [Steam wikipedia](https://en.wikipedia.org/wiki/Steam_(service))
+
+2.[Steam Store Games (Clean dataset)](https://www.kaggle.com/nikdavis/steam-store-games)
 
 \newpage
 
