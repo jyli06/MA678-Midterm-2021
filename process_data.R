@@ -46,11 +46,11 @@ clean_data <- function(){
   ##------------------- categories --------------------------
   # get whether it is Steam Cloud and Valve Anti-Cheat enabled
   df1<-df1 %>% mutate(Steam_Cloud=str_match(df1$categories,regex('(Steam Cloud)'))[,1],
-                      Anti-Cheat=str_match(df1$categories,regex('(Valve Anti-Cheat enabled)'))[,1])
+                      Anti_Cheat=str_match(df1$categories,regex('(Valve Anti-Cheat enabled)'))[,1])
   
   # change the NA into 0
   df1$Steam_Cloud <- df1$Steam_Cloud %>% lapply(fill_0_1) %>% as.numeric()
-  df1$Anti-Cheat <- df1$Anti-Cheat %>% lapply(fill_0_1) %>% as.numeric()
+  df1$Anti_Cheat <- df1$Anti_Cheat %>% lapply(fill_0_1) %>% as.numeric()
   
   
   ##------------------- rating ratio --------------------------
