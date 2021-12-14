@@ -15,7 +15,11 @@ get_the_first_word <- function(i){
 clean_data <- function(){
   # get the csv data and save them as dataframes
   df1 <- read.csv(file = "steam.csv", header = T)
-  df2 <- rbind(df1[20:25,],df1 %>% filter(appid == "4920"))
+  
+  # make several columns numeric
+  df1 <- df1 %>% mutate_at(vars(c("achievements":"median_playtime","price")),as.numeric)
+  
+  # df2 <- rbind(df1[20:25,],df1 %>% filter(appid == "4920"))
   
   ##-----------------get the first word in steamspy-----------
   # get_the_first_word <- function(i){
@@ -45,6 +49,8 @@ clean_data <- function(){
   # make one rating ratio column, defining it as (positive ratings/negative ratings)
   df1$rating_ratio <- df1$positive_ratings/df1$negative_ratings
   
+  df1$log_rating_ratio <- log(df1$rating_ratio)
+  
   ##------------------- owners --------------------------
   # rank the owners
   df1 <-df1 %>% separate(col=owners,
@@ -69,20 +75,34 @@ clean_data <- function(){
   df1$publisher1 <- df1$publisher %>% lapply(get_the_first_word)
   df1 <- df1 %>% mutate_at(vars(contains("publisher1")),unlist)
   
+  ##-----------------get the first developer-----------
+  
+  df1$developer1 <- df1$developer %>% lapply(get_the_first_word)
+  df1 <- df1 %>% mutate_at(vars(contains("developer1")),unlist)
+  
   ##-----------------get the multiplayer string in categories----
   
   df1<-df1 %>% mutate(multiplayer=str_match(df1$categories,regex('(Multi-player)'))[,1])
   df1$multiplayer <- lapply(df1$multiplayer, fill_0_1) %>% as.numeric()
   
+  ##-----------------get most frequent tags for each game---
+  df2 <- read.csv("steamspy_tag_data.csv", header = T)
+  df2 <- df2 %>% select(c(appid,tag))
+  df1 <- df1 %>% left_join(df2, by = "appid")
   
   # df1 %>% group_by(steamspy_tags1) %>% summarise(count = n())
   
   # delete the useless columns
-  df1 <- df1 %>% select(-c("appid","english","developer","publisher","platforms","required_age",
-                 "categories","genres","steamspy_tags","owner2"))
+  # df1 <- df1 %>% select(-c("appid","english","developer","publisher","platforms","required_age",
+                 # "categories","genres","steamspy_tags","owner2"))
 
+  # only get the game data with enough ratings
+  df1 <- df1 %>% filter(!(owner1 == 0) & !(log10(positive_ratings+negative_ratings) < 2))
+  
+  # df1 <- df1 %>% filter(!(owner1 == 0) & !((positive_ratings+negative_ratings) < 10))
 }
-df1 <- clean_data()
+# demo
+df11 <- clean_data()
 
 
 # 
