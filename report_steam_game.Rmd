@@ -1,0 +1,285 @@
+---
+title: "The Report of Steam Game Store"
+author: "Jinyu"
+date: "12/13/2021"
+output: pdf_document
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(fig.width=5, fig.height=5,fig.align = "center") 
+pacman::p_load(
+tidyverse,
+magrittr,
+knitr,
+ggplot2
+)
+
+source("process_data.R")
+```
+
+
+## Abstract
+
+## Introduction
+
+## Method
+
+### Data Cleaning and Processing
+```{r}
+df1 <- clean_data()
+str(df1)
+max(df1$owner_rank)
+```
+
+
+\vspace{0.5cm}
+
+| Column             | Description                                                              |
+|:-------------------|:-------------------------------------------------------------------------|
+| name               | Title of app (game)                                                      |
+| release_date       | Integers, release date for the game, in format YYYY-MM-DD                |
+| average_playtime   | Integers, average user playtime, from SteamSpy                           |
+| median_playtime    | Integers, median user playtime, from SteamSpy                            |
+| price              | Float, Full price of title in GBP in 2019                                |
+| platform           | Integers,the number of systems the game supports, integer ranged 1 to 3  |
+| rating_ratio       | Float, Positive ratings : Negative ratings                               |
+| owner_rank         | Integers, the size of owners, the maximus is 13                          |
+| steamspy_tags      | The most correlated genre of the game according to players' views        |
+| publisher          | Name of the 1st publisher                                                |
+| developer          | Name of the 1st developer                                                |
+| multiplayer        | Dummy variables, if the game supports multiplayers                       |
+| Windows            | Dummy variables, if the game is available in Windows System              |
+| Mac                | Dummy variables, if the game is available in Mac System                  |
+| Linux              | Dummy variables, if the game is available in Linux System                |
+| tags               | The most requently used tags detected in another dataset                 |
+
+
+### Exploratory Data Analysis
+
+Systems plot
+```{r, fig.cap="The Count of Games for different Platforms", fig.height=4, fig.width= 6}
+# get the df for platform barplot
+df_platform <- data.frame(Count = c(sum(df1$Windows),sum(df1$Linux),sum(df1$Mac)),
+                          Platform = c("Windows","Linux","Mac"))
+# platform barplot
+ggplot(data = df_platform)+
+  geom_bar(mapping = aes(x = Platform, y = Count, fill = Platform), stat = "identity") +
+  geom_text(mapping = aes(x = Platform, y = Count, label = Count), size = 4)
+  
+```
+Top 10 steam Publishers
+```{r fig.cap="Top 10 Steam Publishers", fig.height=4, fig.width= 10}
+df1_publisher <- df1 %>% group_by(publisher1) %>% summarise(count_publisher = n())
+df1_publisher_tp10 <- df1_publisher[order(-df1_publisher$count_publisher),] %>% head(10)
+publisher_tp10 <- df1_publisher_tp10$publisher1
+df1_select_pb <- df1 %>% filter(publisher1 %in% publisher_tp10)
+
+ggplot(data = df1_publisher_tp10)+
+  geom_bar(mapping = aes(x = publisher1, y = count_publisher, fill = publisher1), stat = "identity")+
+  geom_text(mapping = aes(x = publisher1, y = count_publisher, label = count_publisher), size = 4) +
+  theme(axis.text.x = element_text(angle = 30))
+
+
+```
+Top 10 steam developers
+```{r fig.cap="Top 10 Steam developers", fig.height=4, fig.width= 10}
+df1_developer <- df1 %>% group_by(developer1) %>% summarise(count_developer = n())
+df1_developer_tp10 <- df1_developer[order(-df1_developer$count_developer),] %>% head(10)
+developer_tp10 <- df1_developer_tp10$developer1
+
+# get the top 10 developers in df1
+df1_select_pb <- df1 %>% filter(developer1 %in% developer_tp10)
+
+ggplot(data = df1_developer_tp10)+
+  geom_bar(mapping = aes(x = developer1, y = count_developer, fill = developer1), stat = "identity")+
+  geom_text(mapping = aes(x = developer1, y = count_developer, label = count_developer), size = 4) +
+  theme(axis.text.x = element_text(angle = 30))
+
+
+```
+
+```{r fig.cap="Top 7 rating ratio for Steam Games(app)", fig.height=5, fig.width= 10}
+df1_rating_7 <- df1[order(-df1$rating_ratio),] %>% head(7)
+df1_rating_7$name[3] <- "Hidden Star in Four Seasons."
+df1_rating_7
+
+ggplot(data = df1_rating_7)+
+  geom_bar(mapping = aes(x = name, y = rating_ratio, fill = name), stat = "identity")+
+  geom_text(mapping = aes(x = name, y = rating_ratio, label = round(rating_ratio, 2)), size = 4) +
+  theme(axis.text.x = element_text(angle = 30))
+
+
+```
+
+median plot
+```{r fig.cap="Top 7 median playtime for Steam Games", fig.height=4, fig.width= 10}
+df1_median_7 <- df1[order(-df1$median_playtime),] %>% head(7)
+# df1_average_10$name[3] <- "Hidden Star in Four Seasons."
+df1_median_7
+
+ggplot(data = df1_median_7)+
+  geom_bar(mapping = aes(x = name, y = median_playtime, fill = name), stat = "identity")+
+  geom_text(mapping = aes(x = name, y = median_playtime, label = round(median_playtime, 2)), size = 4) +
+  theme(axis.text.x = element_text(angle = 30))
+
+
+```
+
+average plot
+```{r fig.cap="Top 7 average playtime for Steam Games", fig.height=4, fig.width= 10}
+df1_average_7 <- df1[order(-df1$average_playtime),] %>% head(7)
+# df1_average_10$name[3] <- "Hidden Star in Four Seasons."
+
+
+ggplot(data = df1_average_7)+
+  geom_bar(mapping = aes(x = name, y = average_playtime, fill = name), stat = "identity")+
+  geom_text(mapping = aes(x = name, y = average_playtime, label = round(average_playtime, 2)), size = 4) +
+  theme(axis.text.x = element_text(angle = 30))
+
+
+```
+
+radar plot for top 7 games
+```{r fig.cap="Radar charge for Top 7 rating ratio games", fig.height=4, fig.width= 10}
+library(fmsb)
+
+select_col <- c("achievements", "median_playtime", "price", "platform1", "log_rating_ratio", "owner_rank")
+
+df_radar_plot <- df1_rating_7 %>% select(select_col)
+df_radar_plot <- rbind(apply(df_radar_plot, 2, max),apply(df_radar_plot, 2, min), df_radar_plot)
+
+
+colors_fill <- c(scales::alpha("darkgoldenrod2",0.1),
+                 scales::alpha("aquamarine",0.1),
+                 scales::alpha("darkorange2",0.2),
+                 scales::alpha("blue1",0.2),
+                 scales::alpha("brown2",0.2),
+                 scales::alpha("burlywood4",0.2),
+                 scales::alpha("chartreuse",0.2),
+                 scales::alpha("deeppink2",0.2))
+  
+# set the radar line color
+colors_line <- c(scales::alpha("darkgoldenrod2",0.9),
+                 scales::alpha("aquamarine",0.9),
+                 scales::alpha("darkorange2",0.9),
+                 scales::alpha("blue1",0.9),
+                 scales::alpha("brown2",0.9),
+                 scales::alpha("burlywood4",0.9),
+                 scales::alpha("chartreuse",0.9),
+                 scales::alpha("deeppink2",0.9))
+
+# plot the radar chart
+radarchart(df_radar_plot,
+           seg = 7,
+           # title = 
+           pcol = colors_line,
+           # pfcol = colors_fill,
+           plwd = 1)
+
+# add the legend for the radar chart
+legend(x=1.8,
+       y=1.35,
+       legend = df1_rating_7$name,
+       bty = "n", pch=20, col=colors_line,cex = 1.2, pt.cex = 3)
+
+
+
+```
+
+radar plot separatively
+```{r fig.cap="Radar charge for Top 7 rating ratio games seperatively", fig.height=4, fig.width= 10}
+
+for (i in 1:(nrow(df_radar_plot)-2)){
+  df_radar_plot1 <- df_radar_plot[c(1,2,3)]
+  # plot the radar chart
+  radarchart(df_radar_plot1,
+             seg = 4,
+             pcol = colors_line,
+             pfcol = colors_fill,
+             plwd = 1)
+  # add the legend for the radar chart
+  legend(x=1.8,
+         y=1.35,
+         legend = df1_rating_7$name,
+         bty = "n", pch=20, col=colors_line,cex = 1.2, pt.cex = 3)
+}
+
+```
+radar plot for top 10 companies
+```{r fig.cap="Radar charge for Top 7 rating ratio games seperatively", fig.height=4, fig.width= 10}
+# get the top 10 developers in df1
+## df1_select_pb
+colnames(df1_select_pb)
+
+df1_pb_stat <- df1_select_pb %>% group_by(publisher1) %>% summarise_at(vars(col_1), list(mid_6h = median))
+
+
+
+for (i in 1:(nrow(df_radar_plot)-2)){
+  df_radar_plot1 <- df_radar_plot[c(1,2,3)]
+  # plot the radar chart
+  radarchart(df_radar_plot1,
+             seg = 4,
+             pcol = colors_line,
+             pfcol = colors_fill,
+             plwd = 1)
+  # add the legend for the radar chart
+  legend(x=1.8,
+         y=1.35,
+         legend = df1_rating_7$name,
+         bty = "n", pch=20, col=colors_line,cex = 1.2, pt.cex = 3)
+}
+
+```
+
+Histogram plot
+```{r fig.cap="Radar charge for Top 7 rating ratio games", fig.height=5, fig.width= 10}
+
+df1$log_rating_ratio <- log(df1$rating_ratio)
+df1$posi_ratio <- (df1$positive_ratings/(df1$positive_ratings+df1$negative_ratings))
+df1$log_posi_ratio <- log(df1$positive_ratings/(df1$positive_ratings+df1$negative_ratings))
+
+# ggplot(data = df1, mapping = aes(x = rating_ratio))+
+#   geom_histogram(alpha = 0.6)
+# 
+# ggplot(data = df1, mapping = aes(x = log_rating_ratio))+
+#   geom_bar(mapping = aes(fill = "blue"),stat = "count", position = "dodge", alpha = 0.6, width = 2)
+
+## best 
+ggplot(data = df1, mapping = aes(x = log_rating_ratio))+
+  # geom_bar(mapping = aes(fill = "blue"),stat = "count", position = "dodge", alpha = 0.6, width = 2) +
+  geom_histogram(mapping = aes(fill = "red"),alpha = 0.6)
+
+##
+
+# ggplot(data = df1, mapping = aes(x = rating_ratio))+
+#   geom_bar(stat = "count", position = "dodge", alpha = 0.6, width = 2)
+# 
+# ggplot(data = df1, mapping = aes(x = posi_ratio, fill = "green"))+
+#   geom_bar(stat = "count", position = "dodge", alpha = 0.6, width = 2)
+
+
+
+
+```
+
+Histogram plot for top10 publishers
+```{r fig.cap="Radar charge for Top 7 rating ratio games", fig.height=5, fig.width= 10}
+ggplot(data = df1_select_pb, mapping = aes(x = log_rating_ratio, fill = publisher1))+
+  # geom_bar(mapping = aes(fill = "blue"),stat = "count", position = "dodge", alpha = 0.6, width = 2) +
+  geom_histogram(mapping = aes(fill = "red"),alpha = 0.6) +
+  facet_wrap(~publisher1) +
+  ggtitle("log(rating_ratio) distribution for top10 publishers")
+```
+
+
+### Model Fitting
+
+## Result
+
+## Discussion
+
+## Reference
+
+\newpage
+
+## Appendix
