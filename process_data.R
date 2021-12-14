@@ -43,6 +43,15 @@ clean_data <- function(){
   # add platform1 to record how many platforms the game support
   df1 <- df1 %>% mutate(platform1 = df1$Linux + df1$Windows + df1$Mac)
   
+  ##------------------- categories --------------------------
+  # get whether it is Steam Cloud and Valve Anti-Cheat enabled
+  df1<-df1 %>% mutate(Steam_Cloud=str_match(df1$categories,regex('(Steam Cloud)'))[,1],
+                      Anti-Cheat=str_match(df1$categories,regex('(Valve Anti-Cheat enabled)'))[,1])
+  
+  # change the NA into 0
+  df1$Steam_Cloud <- df1$Steam_Cloud %>% lapply(fill_0_1) %>% as.numeric()
+  df1$Anti-Cheat <- df1$Anti-Cheat %>% lapply(fill_0_1) %>% as.numeric()
+  
   
   ##------------------- rating ratio --------------------------
   
