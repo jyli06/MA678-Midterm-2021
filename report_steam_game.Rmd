@@ -234,9 +234,10 @@ qqmath(fit2, main='QQ Plot of fit2')
 # qqmath(fit2_1, main='QQ Plot of fit2')
 ```
 
-For 10 publishers
+
 
 ```{r eval=FALSE}
+# For 10 publishers
 library(lme4)
 fit1 <- lmer(log_rating_ratio ~ (achievements|publisher1) + price + platform1 + Steam_Cloud + Anti_Cheat + (owner_rank|publisher1) + multiplayer + (1|publisher1), data = df1_select_pb) 
 ```
