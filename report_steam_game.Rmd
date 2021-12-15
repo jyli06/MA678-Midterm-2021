@@ -201,6 +201,7 @@ Coefficients of fixed part:
 |----------|---------------|------------|----------------|
 |0.1620983 |-6.921915e-05  |0.007699993 |  0.2781679     |
 
+The summary of fit2 information
 ```{r}
 summary(fit2)
 ```
