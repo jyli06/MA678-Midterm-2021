@@ -1,6 +1,6 @@
 ---
 title: "The Report of Steam Game Store"
-author: "Jinyu"
+author: "Jinyu Li   BUID: U14978542"
 date: "12/13/2021"
 output:
   pdf_document: default
