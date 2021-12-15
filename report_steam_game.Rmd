@@ -2,15 +2,19 @@
 title: "The Report of Steam Game Store"
 author: "Jinyu"
 date: "12/13/2021"
-output: pdf_document
+output:
+  pdf_document: default
 ---
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(fig.width=5, fig.height=5,fig.align = "center") 
+knitr::opts_chunk$set(fig.width=5, fig.height=5,fig.align = "center")
+knitr::opts_chunk$set(warning=F, message = F,echo=F,highlight=F)
 pacman::p_load(
 tidyverse,
 magrittr,
 knitr,
-ggplot2
+ggplot2,
+lme4,
+lattice
 )
 
 source("process_data.R")
@@ -18,28 +22,28 @@ source("process_data.R")
 
 
 ## Abstract
+In this project, I would like to talk about the Steam game data. The questions come to my mind is: First, what is the correlation between the ratings of games and some properties for one game. Second, when fit the model, do these variable perform differently in different tags of games. The tag is the most common label players think for one game provided by Steam. 
+
+To make this project work smoothly, I firstly do some EDA to find what we can see through the data. Then, I conduct a multilevel regression model to get the relationship between the ratings and those variables. According to the model, I found variable a, b and c may correlate with ratings of games.
 
 ## Introduction
 video games are becoming more and more popular, especially during the pandemic and because of the RTX 30 series of Graphic Cards of Nvidia, which makes games run more smoothly and the graphics even more delicate. Many publishers take the advantage of this and provide their better service to attract people. Consequently, I would like to ask, except for the graphs, what aspects of games make them popular and attract people and I use the data from Steam.
 
 As most of us known, The Steam platform is the largest digital distribution platform for PC gaming, holding around 75% of the market share in 2013. It is run by Valve, providing installations and automatic updates for Valve's games as well as games from third-party publishers and it's a good communities for players to discuss games, where we can find a lot of information whether one game is good or not from customers including their playtime and so on. Therefore, Steam games data are good resource for me to do some analysis. 
 
-To represent the degree of preference towards one game, I would like to use the rating ratio, which is the positive ratings/negative ratings. 
+To represent the degree of preference towards one game, I would like to use the log of rating ratio, which is the log(positive ratings/negative ratings) and will be explained why to make the transformation of the results in the model part. I will pick up some variables in the dataset, which can be important for one game and fit the model with them.
 
 ## Method
 
 ### Data Cleaning and Processing
-The data is from Kaggle, named [Steam Store Games (Clean dataset)](https://www.kaggle.com/nikdavis/steam-store-games). Although the data seem to be clean, but it is not good enough for me to get some usefull information and some columns and words are not machine and human readable. Therefore I need to wrangle my data. First, I extract some information in some columns and make some more dummy variables, for example in the "platforms" column it contains the systems(Linux, Windows, or Mac) that the game supports, I divide them into 3 dummy varibles to show which system is available for one game. Second, I change some variables into values to make them readable. For example, the "owner" column reprents the range of owners for one game like 500000-1000000, and I change them into rank value from 1 to 13 where 1 is the smallest amount of owners for one game. Third, I dropped some columns that I don't need like "appid", "english", etc.
+The data is from Kaggle, named [Steam Store Games (Clean dataset)](https://www.kaggle.com/nikdavis/steam-store-games). Although the data seem to be clean, but it is not good enough for me to get some usefull information and some columns and words are not machine and human readable. Therefore I need to wrangle my data. 
+
+First, I extract some information in some columns and make some more dummy variables, for example in the "platforms" column it contains the systems(Linux, Windows, or Mac) that the game supports, I divide them into 3 dummy varibles to show which system is available for one game. Second, I change some variables into values to make them readable. For example, the "owner" column represents the range of owners for one game like 500000-1000000, and I change them into rank value from 1 to 13 where 1 is the smallest amount of owners for one game. Third, I get another dataset on the same Kaggle page from the Steam community. It is the tags players give to each of the game. I got the most frequent tags of each game and left join them to my dataset. Last, I dropped some columns that I don't need like "appid", "english", etc.
 
 After cleaning the data, I get the data I need for EDA and modeling, which is as follows:
 ```{r}
 df1 <- clean_data()
-str(df1)
-max(df1$owner_rank)
 ```
-
-
-\vspace{0.5cm}
 
 | Column             | Description                                                              |
 |:-------------------|:-------------------------------------------------------------------------|
@@ -62,11 +66,209 @@ max(df1$owner_rank)
 | Anti_Cheat         | Dummy variables, if the game surports Valve Anti-cheat                |
 | tags               | The most requently used tags detected in another dataset                 |
 
+There are 6886 observations with 23 variables in the final version of my cleaned dataset.
+
+```{r}
+## get the data
+
+
+df1_publisher <- df1 %>% group_by(publisher1) %>% summarise(count_publisher = n())
+df1_publisher_tp10 <- df1_publisher[order(-df1_publisher$count_publisher),] %>% head(10)
+publisher_tp10 <- df1_publisher_tp10$publisher1
+
+# get the top10 publishers
+df1_select_pb <- df1 %>% filter(publisher1 %in% publisher_tp10)
+```
 
 ### Exploratory Data Analysis
+To start with, I make one barplot to show how many games are there now for each tag and pick up the top 10 tag as follows:
 
-Systems plot
+```{r fig.cap="Top 10 steam game tags", fig.height=4, fig.width= 10}
+#fig.cap="Top 10 steam game tags", fig.height=4, fig.width= 10
+
+# Top 10 steam game tags
+df1_tag <- df1 %>% group_by(tag) %>% summarise(count_tag = n())
+df1_tag_tp10 <- df1_tag[order(-df1_tag$count_tag),] %>% head(10)
+tag_tp10 <- df1_tag_tp10$tag
+
+# get the top10 tags
+df1_select_tag <- df1 %>% filter(tag %in% tag_tp10)
+
+ggplot(data = df1_tag_tp10)+
+  geom_bar(mapping = aes(x = tag, y = count_tag, fill = tag), stat = "identity")+
+  geom_text(mapping = aes(x = tag, y = count_tag, label = count_tag), size = 4) +
+  theme(axis.text.x = element_text(angle = 30))
+```
+
+Then, I ploted the distribution of log of rating ratio grouped by different tags. I picked the the log of rating ratio because when I draw the distribution of rating ratio, it looks not good and values are scattered and some values are too large. By using the log transformation, I avoid the problem and the distribution grouped by tags looks similar to normal distribution. The figure is as follows:
+
+
+```{r, fig.height=5, fig.width=10}
+# fig.cap="Histogram plot of log_rating_ratio", fig.height=5, fig.width= 10
+# Histogram plot of log_rating_ratio for top10 tags
+a <- ggplot(data = df1_select_tag, mapping = aes(x = log_rating_ratio, fill = tag))+
+  # geom_bar(mapping = aes(fill = "blue"),stat = "count", position = "dodge", alpha = 0.6, width = 2) +
+  geom_histogram(mapping = aes(fill = "red"),alpha = 0.6) +
+  facet_wrap(~tag) +
+  ggtitle("Log(rating_ratio) Distribution for Top10 Tag")
+a
+```
+
+For the same reason, I plot some other values like average playtime grouped by tags to check whether the distribution of those variables different in different tags. Here I will show one of them and put the rest(except for those dummy variables) into the appendix.
+
+```{r, fig.height=5, fig.width=10}
+#fig.cap="Histogram plot of log_rating_ratio for top10 tags", fig.height=5, fig.width= 5
+# Histogram plot of log_rating_ratio for top10 tags
+ggplot(data = df1_select_tag, mapping = aes(x = owner_rank, fill = tag))+
+  # geom_bar(mapping = aes(fill = "blue"),stat = "count", position = "dodge", alpha = 0.6, width = 2) +
+  geom_histogram(mapping = aes(fill = "red"),alpha = 0.6) +
+  facet_wrap(~tag) +
+  ggtitle("Owner_rank Distribution for Top10 Tag")
+```
+
+
+### Model Fitting
+According to the EDA, I picked up the variables below:
+
+| owner_rank|  Anti_Cheat |  multiplayer| Steam_Cloud |
+|:----------|:------------|:------------|:------------|
+|platform   | achievements|  price      |             |
+
+
+
+In this part, I will use a multilevel regression model. I will pickup the top 10 tags as the categories for the model, taking the "action" tag as an example, the model can be conducted as follows:
+
+$$\begin{split}log(Rating\_Ratio)= 0.8410 + 0.0123\ast (Owner\_Rank) + 0.0737\ast (Anti\_Cheat) + 0.0124\ast (Multiplayer) +\\0.1621\ast (Platform) - 0.00007\ast (Achievements) + 0.0077\ast (Price) + 0.2782\ast (Steam\_Cloud)\end{split}$$
+where the random effects are "owner_rank", "Anti_Cheat", "multiplayer" and the intercept. I set my random effect based on the EDA and common knowledge. I set that variables like "multiplayer" as random effect, because it should be vary among different tags, and in some games, if they can compete with other, the game would be more fun.
+
+To interpret the coefficient: In this case when the game is tagged as "Action", for the "owner_rank" and "platform", the larger they are, meaning the there are more owners and supporting systems for this game, the greater the log of rating ratio will be. When they grow every 1 unit respectively, the log of rating ratio increases by 0.0123 and 0.1621 respectively on average. For "Anti_Cheat", "Multiplayer" and "Steam_Cloud", when the game support these things respectively, the log of rating ratio increase by 0.0737, 0.0124, and 0.2782 respectively on average. And there are 2 variables not really making sense- "Achievements" and "Price", when the achievement increase 1 unit, the log of rating ration decrease 0.00007 on average; And when the price increase 1 unit, the log of rating ration increase 0.0077 on average.
+
+After modeling, I conduct the residual analysis. The details of residual plots are in the Appendix. In the plot, the residual lies around 0 with out a clear pattern, which indicates that the regression looks good. Moreover, I use QQ-plot(see in the Appendix as well) to make another test, and in the plot most of the points lies on the line. In Resisuals vs Leverage Plot, we can find some outliers there but hard to find.
+ 
+```{r}
+# fit2 <- lmer(log_rating_ratio ~ platform1 + owner_rank + (log(1+achievements)|tag) + (log(1+price)|tag) +  (Steam_Cloud|tag) + (Anti_Cheat|tag) + (multiplayer|tag) + (1|tag), data = df1_select_tag)
+fit2 <- lmer(log_rating_ratio ~ platform1 + (owner_rank|tag) + achievements + price +  Steam_Cloud + (Anti_Cheat|tag) + (multiplayer|tag) + (1|tag), data = df1_select_tag)
+
+# summary(fit2)
+# coef(fit2_1)
+
+```
+
+
+## Result
+According to the fitted model and the coefficients table in the Appendix, I can tell that the variable most of the variables correlated with the ratings of games, but surprisingly the price and achievements variables are not two of them. For those fixed variables, I find the platform and Steam_Cloud variables correlated to the rating a lot and may be 2 main factors of ratings, which makes sense. If one game support a lot systems and it is available in Steam Cloud so I can play wherever I go, it really means a lot and I could play them all the time. 
+
+Moreover, for the random effect part, it kind of answers my question that the ratings of different tag may correlated to different elements. The intercepts of each tags are different from one another. In this case, some are positive while other are not. And I find the multiplayer variable and anti_cheat variable vary a lot in different tags as well. It's good to know that talking about ratings, if games with tag of action, strategy and simulation support multiplayer, the ratings of these game can be higher than those don't. And if the games support anti-cheat system, people may feel better about the game (not causally), with strategy, simulation and racing game as exceptions.
+
+So here are some conclusion, variables like owner_rank, Anti_Cheat, multiplayer, platform, Steam_Cloud correlated to the ratings of games more than other variables do. Also, games with different tags vary in ratings and people may judge these game with different grading systems, but we still don't know if there is any causal relationship and we need to look into it in the future.
+
+## Discussion
+There are several limitations and I would like to issue or overcome in the future.
+
+1. There are some confounding and colinearity issues. For example, actually for the games, they don't belong to one single tags or categories but several, so we need to promote the model to reduce these issues.
+
+2. Some relationship among variables are still unknown. When we come to the conclusion that 2 variables are linear correlated or not correlated, we have no idea if there is other relationship and we don't know if the correlation is causal. So we need to make other models to estimate them if we do it in the future.
+
+3. The data of each game are limited. For now, we only have some data for each game in general and we didn't get the information for each customer, which limit the analysis of customer. Meanwhile, if we need to get the sentiment analysis or some other related NLP analysis, we need to dig the comments and process them carefully, which takes a lot of time.
+
+## Reference
+1.[Steam wikipedia](https://en.wikipedia.org/wiki/Steam_(service))
+
+2.[Steam Store Games (Clean dataset)](https://www.kaggle.com/nikdavis/steam-store-games)
+
+\newpage
+
+## Appendix
+Coefficients of Random effect:
+
+|  tag       |   owner_rank|  Anti_Cheat|  multiplayer| (Intercept) |
+|:-----------|:------------|:-----------|:------------|:------------|
+|action      | -0.01230737 | 0.07371410 | 0.012399476 | 0.8410823   |
+|adventure   |  0.02215393 | 0.12781971 |-0.307245284 | 0.5726270   |
+|casual      | -0.11445635 | 0.01278460 |-0.305467867 | 2.4679519   |
+|free_to_play|  0.04329076 | 0.19825849 |-0.571897566 | 0.2850026   |
+|horror      |  0.07302017 | 0.14483948 |-0.064821286 |-0.1564996   |
+|indie       | -0.12100202 | 0.02322936 |-0.197472447 | 2.5185063   |
+|racing      |  0.06237748 |-0.09407389 |-0.047948136 |-0.1955601   |
+|rpg         |  0.14021900 | 0.09490795 |-0.273847925 |-1.2459433   |
+|simulation  |  0.14594236 |-0.18467832 | 0.002282447 |-1.5176855   |
+|strategy    |  0.09094057 |-0.08288278 | 0.023332254 |-0.6073685   |
+
+
+Coefficients of fixed part:
+
+|platform1 | achievements  |  price     | Steam_Cloud    |
+|----------|---------------|------------|----------------|
+|0.1620983 |-6.921915e-05  |0.007699993 |  0.2781679     |
+
+```{r}
+summary(fit2)
+```
+
+
+```{r fig.cap = "Residuals Plot"}
+library(sjPlot)
+library(lme4)
+library(lattice)
+# rdfp2 <- plot_model(fit2,show.values = TRUE, value.offset = .3,vline.color = "black") + theme_bw() + theme(panel.border = element_blank(),
+#         axis.line = element_line(colour = "black"),
+#         plot.title = element_text(hjust = 0.5))
+# rdfp2
+
+plot(fitted(fit2), resid(fit2))
+
+# plot(fitted(fit2_1), resid(fit2_1))
+
+```
+
+```{r echo=FALSE, fig.cap = "Residuals vs Leverage."}
+ggplot(data.frame(lev=hatvalues(fit2),pearson=residuals(fit2,type="pearson")),
+      aes(x=lev,y=pearson)) +
+    geom_point() +
+    theme_bw()
+```
+
+
+```{r} 
+qqmath(fit2, main='QQ Plot of fit2')
+# qqmath(fit2_1, main='QQ Plot of fit2')
+```
+
+For 10 publishers
+
+```{r eval=FALSE}
+library(lme4)
+fit1 <- lmer(log_rating_ratio ~ (achievements|publisher1) + price + platform1 + Steam_Cloud + Anti_Cheat + (owner_rank|publisher1) + multiplayer + (1|publisher1), data = df1_select_pb) 
+```
+
+```{r eval=FALSE}
+library(sjPlot)
+rdfp1 <- plot_model(fit1,show.values = TRUE, value.offset = .3,vline.color = "black") + theme_bw() +
+  theme(panel.border = element_blank(),
+        axis.line = element_line(colour = "black"),
+        plot.title = element_text(hjust = 0.5))
+# rdfp1
+
+plot(fitted(fit1), resid(fit1))
+```
+
+
+```{r echo=FALSE,eval=FALSE, fig.cap = "Residuals vs Leverage."}
+ggplot(data.frame(lev=hatvalues(fit1),pearson=residuals(fit1,type="pearson")),
+      aes(x=lev,y=pearson)) +
+    geom_point() +
+    theme_bw()
+```
+
+```{r eval=FALSE}
+qqmath(fit1, main='QQ Plot of fit1')
+```
+
+
+### more plot
+
 ```{r, fig.cap="The Count of Games for different Platforms", fig.height=4, fig.width= 6}
+# Systems plot
 # get the df for platform barplot
 df_platform <- data.frame(Count = c(sum(df1$Windows),sum(df1$Linux),sum(df1$Mac)),
                           Platform = c("Windows","Linux","Mac"))
@@ -76,11 +278,15 @@ ggplot(data = df_platform)+
   geom_text(mapping = aes(x = Platform, y = Count, label = Count), size = 4)
   
 ```
-Top 10 steam Publishers
+
+
 ```{r fig.cap="Top 10 Steam Publishers", fig.height=4, fig.width= 10}
+# Top 10 steam Publishers
 df1_publisher <- df1 %>% group_by(publisher1) %>% summarise(count_publisher = n())
 df1_publisher_tp10 <- df1_publisher[order(-df1_publisher$count_publisher),] %>% head(10)
 publisher_tp10 <- df1_publisher_tp10$publisher1
+
+# get the top10 publishers
 df1_select_pb <- df1 %>% filter(publisher1 %in% publisher_tp10)
 
 ggplot(data = df1_publisher_tp10)+
@@ -90,14 +296,15 @@ ggplot(data = df1_publisher_tp10)+
 
 
 ```
-Top 10 steam developers
+
 ```{r fig.cap="Top 10 Steam developers", fig.height=4, fig.width= 10}
+# Top 10 largest steam games developers
 df1_developer <- df1 %>% group_by(developer1) %>% summarise(count_developer = n())
 df1_developer_tp10 <- df1_developer[order(-df1_developer$count_developer),] %>% head(10)
 developer_tp10 <- df1_developer_tp10$developer1
 
 # get the top 10 developers in df1
-df1_select_pb <- df1 %>% filter(developer1 %in% developer_tp10)
+df1_select_dp <- df1 %>% filter(developer1 %in% developer_tp10)
 
 ggplot(data = df1_developer_tp10)+
   geom_bar(mapping = aes(x = developer1, y = count_developer, fill = developer1), stat = "identity")+
@@ -107,10 +314,12 @@ ggplot(data = df1_developer_tp10)+
 
 ```
 
+
 ```{r fig.cap="Top 7 rating ratio for Steam Games(app)", fig.height=5, fig.width= 10}
+# top7 rating ratio games
 df1_rating_7 <- df1[order(-df1$rating_ratio),] %>% head(7)
 df1_rating_7$name[3] <- "Hidden Star in Four Seasons."
-df1_rating_7
+# df1_rating_7
 
 ggplot(data = df1_rating_7)+
   geom_bar(mapping = aes(x = name, y = rating_ratio, fill = name), stat = "identity")+
@@ -120,11 +329,12 @@ ggplot(data = df1_rating_7)+
 
 ```
 
-median plot
+
 ```{r fig.cap="Top 7 median playtime for Steam Games", fig.height=4, fig.width= 10}
+# median plot
 df1_median_7 <- df1[order(-df1$median_playtime),] %>% head(7)
 # df1_average_10$name[3] <- "Hidden Star in Four Seasons."
-df1_median_7
+# df1_median_7
 
 ggplot(data = df1_median_7)+
   geom_bar(mapping = aes(x = name, y = median_playtime, fill = name), stat = "identity")+
@@ -134,8 +344,9 @@ ggplot(data = df1_median_7)+
 
 ```
 
-average plot
+
 ```{r fig.cap="Top 7 average playtime for Steam Games", fig.height=4, fig.width= 10}
+# average plot
 df1_average_7 <- df1[order(-df1$average_playtime),] %>% head(7)
 # df1_average_10$name[3] <- "Hidden Star in Four Seasons."
 
@@ -148,8 +359,9 @@ ggplot(data = df1_average_7)+
 
 ```
 
-radar plot for top 7 games
+
 ```{r fig.cap="Radar charge for Top 7 rating ratio games", fig.height=4, fig.width= 10}
+# radar plot for top 7 games
 library(fmsb)
 
 select_col <- c("achievements", "median_playtime", "price", "platform1", "log_rating_ratio", "owner_rank")
@@ -195,8 +407,9 @@ legend(x=1.8,
 
 ```
 
-radar plot separatively
+
 ```{r fig.cap="Radar charge for Top 7 rating ratio games seperatively", fig.height=4, fig.width= 10}
+# radar plot separatively
 library(customLayout)
 par(mar = c(1,2,2,1))
 
@@ -222,11 +435,13 @@ for (i in 1:(nrow(df_radar_plot)-2)){
 
 
 ```
-radar plot for top 10 companies
-```{r fig.cap="Radar charge for Top 7 rating ratio games seperatively", fig.height=4, fig.width= 10}
+
+
+```{r fig.cap="Radar charge for Top 7 rating ratio games seperatively", fig.height=4, fig.width= 10, eval=FALSE}
+# radar plot for top 10 companies
 # get the top 10 developers in df1
 ## df1_select_pb
-colnames(df1_select_pb)
+# colnames(df1_select_pb)
 
 # df1_pb_stat <- df1_select_pb %>% group_by(publisher1) %>% summarise_at(vars(col_1), list(mid_6h = median))
 
@@ -249,9 +464,9 @@ colnames(df1_select_pb)
 
 ```
 
-Histogram plot
-```{r fig.cap="Radar charge for Top 7 rating ratio games", fig.height=5, fig.width= 10}
 
+```{r fig.cap="Radar charge for Top 7 rating ratio games", fig.height=5, fig.width= 10}
+# Histogram plot
 df1$log_rating_ratio <- log(df1$rating_ratio)
 df1$posi_ratio <- (df1$positive_ratings/(df1$positive_ratings+df1$negative_ratings))
 df1$log_posi_ratio <- log(df1$positive_ratings/(df1$positive_ratings+df1$negative_ratings))
@@ -280,27 +495,12 @@ ggplot(data = df1, mapping = aes(x = log_rating_ratio))+
 
 ```
 
-Histogram plot for top10 publishers
+
 ```{r fig.cap="Radar charge for Top 7 rating ratio games", fig.height=5, fig.width= 10}
+# Histogram plot for top10 publishers
 ggplot(data = df1_select_pb, mapping = aes(x = log_rating_ratio, fill = publisher1))+
   # geom_bar(mapping = aes(fill = "blue"),stat = "count", position = "dodge", alpha = 0.6, width = 2) +
   geom_histogram(mapping = aes(fill = "red"),alpha = 0.6) +
   facet_wrap(~publisher1) +
   ggtitle("log(rating_ratio) distribution for top10 publishers")
 ```
-
-
-### Model Fitting
-
-## Result
-
-## Discussion
-
-## Reference
-1. [Steam wikipedia](https://en.wikipedia.org/wiki/Steam_(service))
-
-2.[Steam Store Games (Clean dataset)](https://www.kaggle.com/nikdavis/steam-store-games)
-
-\newpage
-
-## Appendix

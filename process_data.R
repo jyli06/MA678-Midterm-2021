@@ -96,14 +96,14 @@ clean_data <- function(){
   
   ##-----------------get most frequent tags for each game---
   df2 <- read.csv("steamspy_tag_data.csv", header = T)
-  df2 <- df2 %>% select(c(appid,tag))
+  df2 <- df2 %>% dplyr::select(c("appid","tag"))
   df1 <- df1 %>% left_join(df2, by = "appid")
   
   # df1 %>% group_by(steamspy_tags1) %>% summarise(count = n())
   
   # delete the useless columns
-  # df1 <- df1 %>% select(-c("appid","english","developer","publisher","platforms","required_age",
-                 # "categories","genres","steamspy_tags","owner2"))
+  df1 <- df1 %>% dplyr::select(-c("appid","english","developer","publisher","platforms","required_age",
+  "categories","genres","steamspy_tags","owner2"))
 
   # only get the game data with enough ratings
   df1 <- df1 %>% filter(!(owner1 == 0) & !(log10(positive_ratings+negative_ratings) < 2))
@@ -111,7 +111,8 @@ clean_data <- function(){
   # df1 <- df1 %>% filter(!(owner1 == 0) & !((positive_ratings+negative_ratings) < 10))
 }
 # demo
-df11 <- clean_data()
+# df11 <- clean_data()
+
 
 
 # 
